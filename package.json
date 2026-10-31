@@ -19,5 +19,8 @@
   "dependencies": {
     "@waline/vercel": "^1.31.9",
     "serverless-http": "^4.0.0"
+  },
+  "overrides": {
+    "jsdom": "24.1.3"
   }
 }
