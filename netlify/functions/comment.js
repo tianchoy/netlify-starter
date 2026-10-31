@@ -13,7 +13,10 @@ const serverless = require('serverless-http');
 // 所以这里自建一层：命中 /ui 时直接吐出 @waline/admin 的单文件 SPA。
 // 构建时 scripts/copy-admin.mjs 会把 bundle 拷成仓库根的 admin-ui.js。
 const FUNCTION_NAME = (process.env._HANDLER || 'comment.handler').replace(/\.handler$/u, '');
-const SERVER_PREFIX = `/.netlify/functions/${FUNCTION_NAME}/`;
+// 后台所有请求都是 ${serverURL}<相对路径>（如 `comment?type=list`、`user`、`token/2fa`），
+// 而它要求响应必须带 errno:0 —— 只有 /api/ 前缀的接口才是这个包装格式，
+// 少给 api/ 段会拿到裸的分页对象，后台会因 errno !== 0 直接抛错、列表永远空白。
+const SERVER_PREFIX = `/.netlify/functions/${FUNCTION_NAME}/api/`;
 
 let adminBundle;
 function getAdminBundle() {
