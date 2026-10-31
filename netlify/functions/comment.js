@@ -4,8 +4,62 @@
 // MathJax 从函数包里删掉，否则会超过 Netlify 的单函数 250 MB 限制。
 process.env.MARKDOWN_TEX = process.env.MARKDOWN_TEX || 'katex';
 
+const fs = require('fs');
+const path = require('path');
 const http = require('http');
 const serverless = require('serverless-http');
+
+// @waline/vercel 不含管理后台（Vercel 模板靠额外的 @waline/admin 提供），
+// 所以这里自建一层：命中 /ui 时直接吐出 @waline/admin 的单文件 SPA。
+// 构建时 scripts/copy-admin.mjs 会把 bundle 拷成仓库根的 admin-ui.js。
+const FUNCTION_NAME = (process.env._HANDLER || 'comment.handler').replace(/\.handler$/u, '');
+const SERVER_PREFIX = `/.netlify/functions/${FUNCTION_NAME}/`;
+
+let adminBundle;
+function getAdminBundle() {
+  if (adminBundle === undefined) {
+    const candidates = [
+      path.join(__dirname, '..', '..', 'admin-ui.js'),
+      path.join(process.cwd(), 'admin-ui.js'),
+      path.join(__dirname, '..', '..', 'node_modules', '@waline', 'admin', 'dist', 'admin.js'),
+    ];
+    const found = candidates.find((file) => {
+      try {
+        return fs.statSync(file).size > 0;
+      } catch {
+        return false;
+      }
+    });
+    adminBundle = found ? fs.readFileSync(found, 'utf8') : null;
+  }
+  return adminBundle;
+}
+
+function adminPage() {
+  const bundle = getAdminBundle();
+  if (!bundle) {
+    return json(
+      500,
+      { error: 'admin bundle not found (admin-ui.js missing in deployment)' },
+    );
+  }
+  return {
+    statusCode: 200,
+    headers: { 'content-type': 'text/html; charset=utf-8' },
+    body: `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>评论管理 · Waline</title>
+</head>
+<body>
+<script>window.serverURL = ${JSON.stringify(SERVER_PREFIX)};</script>
+<script type="module">${bundle}</script>
+</body>
+</html>`,
+  };
+}
 
 // Waline 的路由前缀是从运行时环境变量 _HANDLER 推导的
 // （见 @waline/vercel/src/config/netlify.js），该变量在不同运行时下
@@ -147,6 +201,13 @@ module.exports.handler = async (event, context) => {
       originalRawUrl: event.rawUrl,
       resolvedPath: resolvePath(event),
     });
+  }
+
+  const routerPath = resolvePath(event);
+
+  // 管理后台：所有 /ui 及 /ui/* 都返回同一个 SPA 页面（内部是前端路由）
+  if (routerPath === '/ui' || routerPath.startsWith('/ui/')) {
+    return adminPage();
   }
 
   try {

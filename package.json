@@ -14,11 +14,12 @@
   },
   "homepage": "https://github.com/walinejs/netlify-starter#readme",
   "scripts": {
-    "postinstall": "node scripts/prune.mjs"
+    "postinstall": "node scripts/prune.mjs && node scripts/copy-admin.mjs"
   },
   "dependencies": {
     "@waline/vercel": "^1.31.9",
-    "serverless-http": "^4.0.0"
+    "serverless-http": "^4.0.0",
+    "@waline/admin": "^0.36.0"
   },
   "overrides": {
     "jsdom": "24.1.3"

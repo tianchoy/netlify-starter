@@ -14,4 +14,4 @@
   # 仅仅标记 external 并不会把包拷进函数目录，运行时会报 Cannot find module。
   # 这里显式把 node_modules 一起带上（已由 scripts/prune.mjs 瘦身到约 205 MB，
   # 在 Netlify 单函数 250 MB 限制内）。
-  included_files = ["node_modules/**", "node_modules/**/*"]
+  included_files = ["node_modules/**", "node_modules/**/*", "admin-ui.js"]
