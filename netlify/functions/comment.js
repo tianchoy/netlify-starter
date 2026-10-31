@@ -1,3 +1,9 @@
+// 必须在 require('@waline/vercel') 之前设置：它的 src/config/config.js 在模块
+// 加载阶段就会读取 MARKDOWN_TEX，默认值 mathjax 会连带加载 100 MB 的 MathJax。
+// 这里默认改用 KaTeX（体积只有几 MB），构建时 scripts/prune.mjs 才有条件把
+// MathJax 从函数包里删掉，否则会超过 Netlify 的单函数 250 MB 限制。
+process.env.MARKDOWN_TEX = process.env.MARKDOWN_TEX || 'katex';
+
 const http = require('http');
 const Waline = require('@waline/vercel');
 const serverless = require('serverless-http');

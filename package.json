@@ -13,6 +13,9 @@
     "url": "https://github.com/walinejs/netlify-starter/issues"
   },
   "homepage": "https://github.com/walinejs/netlify-starter#readme",
+  "scripts": {
+    "postinstall": "node scripts/prune.mjs"
+  },
   "dependencies": {
     "@waline/vercel": "^1.31.9",
     "serverless-http": "^4.0.0"
