@@ -61,3 +61,34 @@ for (const name of REMOVABLE) {
 
 const total = dirSize(root);
 console.log(`[prune] freed ${(freed / 1024 / 1024).toFixed(1)} MB, node_modules now ${(total / 1024 / 1024).toFixed(1)} MB`);
+
+patchWalineMarkdown();
+
+// @mdit/plugin-emoji 是纯 ESM 包（"type": "module"，只有 dist/index.js），
+// 而 Waline 在 src/service/markdown/index.js 顶部用 require() 静态加载它。
+// Netlify 的函数运行时关闭了 require(ESM)（等价于 Node < 22.12），会直接抛
+// ERR_REQUIRE_ESM 让整个函数 502。getMarkdownParser 本身是 async，
+// 把静态 require 换成函数内的 await import() 即可，两种运行时都兼容。
+function patchWalineMarkdown() {
+  const file = path.join(root, '@waline/vercel/src/service/markdown/index.js');
+  if (!fs.existsSync(file)) {
+    console.log('[patch] @waline/vercel 入口不存在，跳过');
+    return;
+  }
+
+  const source = fs.readFileSync(file, 'utf8');
+  const requireLine = "const { fullEmoji } = require('@mdit/plugin-emoji');";
+  const asyncHead = 'const getMarkdownParser = async (markdown = {}) => {';
+
+  if (!source.includes(requireLine) || !source.includes(asyncHead)) {
+    console.log('[patch] 未命中预期代码（可能已修补或版本变化），跳过');
+    return;
+  }
+
+  const patched = source
+    .replace(requireLine, '')
+    .replace(asyncHead, `${asyncHead}\n  const { fullEmoji } = await import('@mdit/plugin-emoji');`);
+
+  fs.writeFileSync(file, patched);
+  console.log('[patch] @mdit/plugin-emoji 改为动态 import');
+}

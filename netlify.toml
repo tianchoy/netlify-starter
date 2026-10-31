@@ -1,5 +1,8 @@
 [build.environment]
-  NODE_VERSION = "24"
+  # 函数运行时的 Node 版本跟着它走。22 支持 require(ESM)，而 18/20 早期版本不支持，
+  # 会让 @waline/vercel 依赖的纯 ESM 包（@mdit/plugin-emoji、jsdom 的 @exodus/bytes）
+  # 直接抛 ERR_REQUIRE_ESM，整个函数 502。
+  NODE_VERSION = "22"
 
 [functions]
   directory = "netlify/functions/"

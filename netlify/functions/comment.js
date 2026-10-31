@@ -5,7 +5,6 @@
 process.env.MARKDOWN_TEX = process.env.MARKDOWN_TEX || 'katex';
 
 const http = require('http');
-const Waline = require('@waline/vercel');
 const serverless = require('serverless-http');
 
 // Waline 的路由前缀是从运行时环境变量 _HANDLER 推导的
@@ -79,7 +78,13 @@ function resolvePath(event) {
     .map(toRouterPath)
     .filter((value) => typeof value === 'string');
 
-  return candidates.find((value) => value === '/ui' || value.startsWith('/ui/') || value === '/api' || value.startsWith('/api/')) || candidates[0] || '/';
+  return (
+    candidates.find(
+      (value) => value === '/ui' || value.startsWith('/ui/') || value === '/api' || value.startsWith('/api/'),
+    ) ||
+    candidates[0] ||
+    '/'
+  );
 }
 
 function normalize(event) {
@@ -99,44 +104,60 @@ function normalize(event) {
   };
 }
 
-const app = Waline({
-  env: 'netlify',
-  async postSave(comment) {
-    // do what ever you want after save comment
-  },
-});
+// Waline 用 ThinkJS，启动时会扫描自身目录注册路由，初始化成本高且可能失败。
+// 这里改成首次请求时才加载：这样探针、以及初始化失败时的错误详情都能正常返回，
+// 而不是整个函数 502。
+let walineHandler;
+function getWalineHandler() {
+  if (!walineHandler) {
+    walineHandler = (async () => {
+      const Waline = require('@waline/vercel');
+      const app = Waline({
+        env: 'netlify',
+        async postSave(comment) {
+          // do what ever you want after save comment
+        },
+      });
+      return serverless(http.createServer(app));
+    })();
+  }
+  return walineHandler;
+}
 
-const handler = serverless(http.createServer(app));
+function json(statusCode, payload) {
+  return {
+    statusCode,
+    headers: { 'content-type': 'application/json; charset=utf-8' },
+    body: JSON.stringify(payload, null, 2),
+  };
+}
 
-module.exports.handler = (event, context) => {
-  // 诊断入口：带 ?__probe=1 时回显 Netlify 实际传入的事件，
-  // 用来定位路径差异，确认无误后可整段删掉。
+module.exports.handler = async (event, context) => {
   const query = buildQuery(event);
+
+  // 诊断入口：带 ?__probe=1 时回显运行时信息，确认无误后可整段删掉。
   if (/(^|&)__probe=1(&|$)/u.test(query)) {
-    const detail = {
-      version: event.version || '1.0',
+    return json(200, {
+      node: process.version,
+      versions: process.versions,
       handlerEnv: process.env._HANDLER || null,
+      markdownTex: process.env.MARKDOWN_TEX || null,
       eventKeys: Object.keys(event),
       originalPath: event.path,
-      originalRawPath: event.rawPath,
       originalRawUrl: event.rawUrl,
-      requestContextPath: event.requestContext && event.requestContext.path,
-      headers: Object.keys(event.headers || {}).reduce((acc, key) => {
-        if (key.toLowerCase() === 'cookie') {
-          return acc;
-        }
-        acc[key] = event.headers[key];
-        return acc;
-      }, {}),
       resolvedPath: resolvePath(event),
-    };
-    console.log('[waline-probe]', JSON.stringify(detail));
-    return {
-      statusCode: 200,
-      headers: { 'content-type': 'application/json; charset=utf-8' },
-      body: JSON.stringify(detail, null, 2),
-    };
+    });
   }
 
-  return handler(normalize(event), context);
+  try {
+    const handler = await getWalineHandler();
+    return await handler(normalize(event), context);
+  } catch (error) {
+    return json(500, {
+      error: error && error.message,
+      code: error && error.code,
+      node: process.version,
+      stack: error && error.stack ? String(error.stack).split('\n').slice(0, 6) : null,
+    });
+  }
 };
