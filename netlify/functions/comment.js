@@ -55,6 +55,21 @@ function adminPage() {
 </head>
 <body>
 <script>window.serverURL = ${JSON.stringify(SERVER_PREFIX)};</script>
+<script>
+// Waline 后台对所有已登录用户都无条件显示 LeanCloud 停服公告（渲染条件只是
+// 「用户已登录」，并不检测实际存储后端）。本站用的是 PostgreSQL，与 LeanCloud
+// 无关，这里只摘掉这条公告，保留真正有用的「新版本已发布」提示。
+(function () {
+  var sweep = function () {
+    document.querySelectorAll('.upgrade-tips').forEach(function (el) {
+      if (/leancloud/i.test(el.textContent || '')) el.remove();
+    });
+  };
+  new MutationObserver(sweep).observe(document.documentElement, { childList: true, subtree: true });
+  document.addEventListener('DOMContentLoaded', sweep);
+  sweep();
+})();
+</script>
 <script type="module">${bundle}</script>
 </body>
 </html>`,
