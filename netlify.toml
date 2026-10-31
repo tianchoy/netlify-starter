@@ -1,6 +1,10 @@
 [build.environment]
   NODE_VERSION = "24"
-  
+
 [functions]
   directory = "netlify/functions/"
   node_bundler = "esbuild"
+  # ThinkJS（Waline 的服务端框架）靠 __dirname 在运行时扫描 src/ 目录注册路由，
+  # 一旦被 esbuild 打成单文件，__dirname 里就没有 src/ 了，结果所有接口都是 404。
+  # 这里让 @waline/vercel 整包不参与打包，随 node_modules 原样发布。
+  external_node_modules = ["@waline/vercel"]
