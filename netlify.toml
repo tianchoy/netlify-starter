@@ -6,5 +6,9 @@
   node_bundler = "esbuild"
   # ThinkJS（Waline 的服务端框架）靠 __dirname 在运行时扫描 src/ 目录注册路由，
   # 一旦被 esbuild 打成单文件，__dirname 里就没有 src/ 了，结果所有接口都是 404。
-  # 这里让 @waline/vercel 整包不参与打包，随 node_modules 原样发布。
+  # 所以让 @waline/vercel 整包不参与打包。
   external_node_modules = ["@waline/vercel"]
+  # 仅仅标记 external 并不会把包拷进函数目录，运行时会报 Cannot find module。
+  # 这里显式把 node_modules 一起带上（已由 scripts/prune.mjs 瘦身到约 205 MB，
+  # 在 Netlify 单函数 250 MB 限制内）。
+  included_files = ["node_modules/**", "node_modules/**/*"]
