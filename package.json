@@ -17,9 +17,9 @@
     "postinstall": "node scripts/prune.mjs && node scripts/copy-admin.mjs"
   },
   "dependencies": {
-    "@waline/vercel": "^1.31.9",
-    "serverless-http": "^4.0.0",
-    "@waline/admin": "^0.36.0"
+    "@waline/admin": "^0.36.1",
+    "@waline/vercel": "^1.43.6",
+    "serverless-http": "^4.0.0"
   },
   "overrides": {
     "jsdom": "24.1.3"

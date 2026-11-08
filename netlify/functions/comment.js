@@ -12,6 +12,11 @@ const serverless = require('serverless-http');
 // @waline/vercel 不含管理后台（Vercel 模板靠额外的 @waline/admin 提供），
 // 所以这里自建一层：命中 /ui 时直接吐出 @waline/admin 的单文件 SPA。
 // 构建时 scripts/copy-admin.mjs 会把 bundle 拷成仓库根的 admin-ui.js。
+//
+// 这里不要注入任何操作 DOM 的脚本：后台是 React 管理的，外部删节点会让下一次
+// diff 抛 NotFoundError 并卸载整棵树（页面「闪一下就白屏」）。此前为隐藏无关的
+// LeanCloud 公告加过 MutationObserver，现已删除 —— @waline/admin 0.36.1 配合
+// @waline/vercel 1.43.6 返回的 storage 字段，只会在 LeanCloud 存储下显示该公告。
 const FUNCTION_NAME = (process.env._HANDLER || 'comment.handler').replace(/\.handler$/u, '');
 // 后台所有请求都是 ${serverURL}<相对路径>（如 `comment?type=list`、`user`、`token/2fa`），
 // 而它要求响应必须带 errno:0 —— 只有 /api/ 前缀的接口才是这个包装格式，
@@ -58,40 +63,6 @@ function adminPage() {
 </head>
 <body>
 <script>window.serverURL = ${JSON.stringify(SERVER_PREFIX)};</script>
-<script>
-// Waline 后台对所有已登录用户都无条件显示 LeanCloud 停服公告（渲染条件只是
-// 「用户已登录」，并不检测实际存储后端）。本站用的是 PostgreSQL，与 LeanCloud
-// 无关，这里只隐藏这条公告，保留真正有用的「新版本已发布」提示。
-//
-// 只能用 CSS 隐藏，绝不能 el.remove()：这些节点归 React 管，删掉之后 React
-// 下一次 diff 会 insertBefore/removeChild 找不到父节点而抛 NotFoundError，
-// 整棵组件树被卸载 —— 表现就是后台「闪一下就白屏」。加 class 只改属性，
-// 不动 DOM 树结构，React 仍能正常更新。
-(function () {
-  var HIDE = 'wl-hide-leancloud';
-  var style = document.createElement('style');
-  style.textContent = '.' + HIDE + ' { display: none !important; }';
-  document.head.appendChild(style);
-  var pending = false;
-  var sweep = function () {
-    pending = false;
-    document.querySelectorAll('.upgrade-tips:not(.' + HIDE + ')').forEach(function (el) {
-      if (/leancloud/i.test(el.textContent || '')) el.classList.add(HIDE);
-    });
-  };
-  // React 每次更新都会触发 childList 变动，合并到下一帧再扫，避免同步遍历拖慢渲染
-  var raf = window.requestAnimationFrame
-    ? window.requestAnimationFrame.bind(window)
-    : function (fn) { return setTimeout(fn, 16); };
-  var schedule = function () {
-    if (pending) return;
-    pending = true;
-    raf(sweep);
-  };
-  new MutationObserver(schedule).observe(document.documentElement, { childList: true, subtree: true });
-  document.addEventListener('DOMContentLoaded', sweep);
-})();
-</script>
 <script type="module">${bundle}</script>
 </body>
 </html>`,

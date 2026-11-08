@@ -2,6 +2,14 @@
   # 函数运行时的 Node 版本跟着它走。22 支持 require(ESM)，而 18/20 早期版本不支持，
   # 会让 @waline/vercel 依赖的纯 ESM 包（@mdit/plugin-emoji、jsdom 的 @exodus/bytes）
   # 直接抛 ERR_REQUIRE_ESM，整个函数 502。
+  #
+  # 注意：@waline/vercel 1.43.5 起把 engines.node 提到了 ^26.0.0，但 1.43.6 的源码
+  # 并未使用 Node 26 专属 API，依赖树里也只有它自己要求 26；在干净的 npm ci +
+  # SQLite 端到端验证中，Node 22 下 /api/token、评论接口均正常，响应头
+  # x-waline-version 为 1.43.6。npm 的 EBADENGINE 只是 warning，不阻断构建。
+  # 因此这里仍保持 22（与 1.43.4 的官方支持版本一致，也避开 Node 26 移除
+  # http.writeHeader / _stream_* 等旧 API 对 ThinkJS 4 的影响）。
+  # 若后续 Waline 版本真的依赖 Node 26 能力，再改成 26 并做一次完整回归。
   NODE_VERSION = "22"
 
 [functions]
