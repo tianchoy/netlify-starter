@@ -61,16 +61,35 @@ function adminPage() {
 <script>
 // Waline 后台对所有已登录用户都无条件显示 LeanCloud 停服公告（渲染条件只是
 // 「用户已登录」，并不检测实际存储后端）。本站用的是 PostgreSQL，与 LeanCloud
-// 无关，这里只摘掉这条公告，保留真正有用的「新版本已发布」提示。
+// 无关，这里只隐藏这条公告，保留真正有用的「新版本已发布」提示。
+//
+// 只能用 CSS 隐藏，绝不能 el.remove()：这些节点归 React 管，删掉之后 React
+// 下一次 diff 会 insertBefore/removeChild 找不到父节点而抛 NotFoundError，
+// 整棵组件树被卸载 —— 表现就是后台「闪一下就白屏」。加 class 只改属性，
+// 不动 DOM 树结构，React 仍能正常更新。
 (function () {
+  var HIDE = 'wl-hide-leancloud';
+  var style = document.createElement('style');
+  style.textContent = '.' + HIDE + ' { display: none !important; }';
+  document.head.appendChild(style);
+  var pending = false;
   var sweep = function () {
-    document.querySelectorAll('.upgrade-tips').forEach(function (el) {
-      if (/leancloud/i.test(el.textContent || '')) el.remove();
+    pending = false;
+    document.querySelectorAll('.upgrade-tips:not(.' + HIDE + ')').forEach(function (el) {
+      if (/leancloud/i.test(el.textContent || '')) el.classList.add(HIDE);
     });
   };
-  new MutationObserver(sweep).observe(document.documentElement, { childList: true, subtree: true });
+  // React 每次更新都会触发 childList 变动，合并到下一帧再扫，避免同步遍历拖慢渲染
+  var raf = window.requestAnimationFrame
+    ? window.requestAnimationFrame.bind(window)
+    : function (fn) { return setTimeout(fn, 16); };
+  var schedule = function () {
+    if (pending) return;
+    pending = true;
+    raf(sweep);
+  };
+  new MutationObserver(schedule).observe(document.documentElement, { childList: true, subtree: true });
   document.addEventListener('DOMContentLoaded', sweep);
-  sweep();
 })();
 </script>
 <script type="module">${bundle}</script>
